@@ -1,27 +1,90 @@
-# Xposed Module Template (Based on libxposed)
+# Xperia Launcher Exception Fixer
 
-This is a general-purpose Xposed module template built on [libxposed](https://github.com/libxposed/api).
+### What does this module do?
 
-## How to Use
+Fix this issue:
+```bash
+Drawable com.sonymobile.launcher:drawable/ic_chevron_start has unresolved theme attributes! Consider using Resources.getDrawable(int, Theme) or Context.getDrawable(int). (Fix with AI)
+java.lang.RuntimeException
+	at android.content.res.Resources.getDrawable(Resources.java:926)
+	at com.android.launcher3.pageindicators.PageIndicatorDots.<init>(PageIndicatorDots.java:190)
+	at com.android.launcher3.pageindicators.PageIndicatorDots.<init>(PageIndicatorDots.java:173)
+	at java.lang.reflect.Constructor.newInstance0(Native Method)
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:343)
+	at android.view.LayoutInflater.createView(LayoutInflater.java:743)
+	at android.view.LayoutInflater.createViewFromTag(LayoutInflater.java:895)
+	at android.view.LayoutInflater.createViewFromTag(LayoutInflater.java:850)
+	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1012)
+	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:973)
+	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1015)
+	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:973)
+	at android.view.LayoutInflater.inflate(LayoutInflater.java:571)
+	at android.view.LayoutInflater.inflate(LayoutInflater.java:462)
+	at android.view.LayoutInflater.inflate(LayoutInflater.java:413)
+	at com.android.launcher3.folder.Folder.fromXml(Folder.java:608)
+	at com.android.launcher3.folder.FolderIcon.setFolderInfo(FolderIcon.java:286)
+	at com.android.launcher3.allapps.BaseAllAppsAdapter.onBindViewHolder(BaseAllAppsAdapter.java:403)
+	at com.android.launcher3.allapps.BaseAllAppsAdapter.onBindViewHolder(BaseAllAppsAdapter.java:71)
+	at androidx.recyclerview.widget.RecyclerView$Adapter.onBindViewHolder(RecyclerView.java:7910)
+	at androidx.recyclerview.widget.RecyclerView$Adapter.bindViewHolder(RecyclerView.java:8016)
+	at androidx.recyclerview.widget.RecyclerView$Recycler.tryBindViewHolderByDeadline(RecyclerView.java:6810)
+	at androidx.recyclerview.widget.RecyclerView$Recycler.tryGetViewHolderForPositionByDeadline(RecyclerView.java:7079)
+	at androidx.recyclerview.widget.RecyclerView$Recycler.getViewForPosition(RecyclerView.java:6920)
+	at androidx.recyclerview.widget.RecyclerView$Recycler.getViewForPosition(RecyclerView.java:6916)
+	at androidx.recyclerview.widget.LinearLayoutManager$LayoutState.next(LinearLayoutManager.java:2423)
+	at androidx.recyclerview.widget.GridLayoutManager.layoutChunk(GridLayoutManager.java:1251)
+	at androidx.recyclerview.widget.LinearLayoutManager.fill(LinearLayoutManager.java:1683)
+	at androidx.recyclerview.widget.LinearLayoutManager.onLayoutChildren(LinearLayoutManager.java:748)
+	at androidx.recyclerview.widget.GridLayoutManager.onLayoutChildren(GridLayoutManager.java:837)
+	at androidx.recyclerview.widget.RecyclerView.dispatchLayoutStep2(RecyclerView.java:4817)
+	at androidx.recyclerview.widget.RecyclerView.dispatchLayout(RecyclerView.java:4540)
+	at androidx.recyclerview.widget.RecyclerView.onLayout(RecyclerView.java:5091)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460)
+	at android.widget.RelativeLayout.onLayout(RelativeLayout.java:1103)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460)
+	at android.widget.FrameLayout.layoutChildren(FrameLayout.java:332)
+	at android.widget.FrameLayout.onLayout(FrameLayout.java:270)
+	at com.android.launcher3.views.BaseDragLayer.onLayout(BaseDragLayer.java:538)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460)
+	at android.widget.FrameLayout.layoutChildren(FrameLayout.java:332)
+	at android.widget.FrameLayout.onLayout(FrameLayout.java:270)
+	at com.android.launcher3.LauncherRootView.onLayout(LauncherRootView.java:116)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460)
+	at android.widget.FrameLayout.layoutChildren(FrameLayout.java:332)
+	at android.widget.FrameLayout.onLayout(FrameLayout.java:270)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460) (Fix with AI)
+	at android.widget.LinearLayout.setChildFrame(LinearLayout.java:1891)
+	at android.widget.LinearLayout.layoutVertical(LinearLayout.java:1729)
+	at android.widget.LinearLayout.onLayout(LinearLayout.java:1638)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460)
+	at android.widget.FrameLayout.layoutChildren(FrameLayout.java:332)
+	at android.widget.FrameLayout.onLayout(FrameLayout.java:270)
+	at com.android.internal.policy.DecorView.onLayout(DecorView.java:775)
+	at android.view.View.layout(View.java:25639)
+	at android.view.ViewGroup.layout(ViewGroup.java:6460)
+	at android.view.ViewRootImpl.performLayout(ViewRootImpl.java:5089)
+	at android.view.ViewRootImpl.performTraversals(ViewRootImpl.java:4233)
+	at android.view.ViewRootImpl.doTraversal(ViewRootImpl.java:3091)
+	at android.view.ViewRootImpl$TraversalRunnable.run(ViewRootImpl.java:10675)
+	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1594)
+	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1603)
+	at android.view.Choreographer.doCallbacks(Choreographer.java:1202)
+	at android.view.Choreographer.doFrame(Choreographer.java:1128)
+	at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1577)
+	at android.os.Handler.handleCallback(Handler.java:995)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:248)
+	at android.os.Looper.loop(Looper.java:338)
+	at android.app.ActivityThread.main(ActivityThread.java:9137)
+	at java.lang.reflect.Method.invoke(Native Method)
+	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:940)
+```
 
-1. **Modify Package Name**: Change `namespace` and `applicationId` in `app/build.gradle` to your own package name.
-2. **Rename Package Directory**: Rename the `app/src/main/java/com/example/module` directory to match your package structure.
-3. **Update Module Entry Point**: 
-   - Implement your logic in `MainModule.java`.
-   - Update the class name in `app/src/main/resources/META-INF/xposed/java_init.list` to ensure it points to your `XposedModule` implementation class.
-4. **Configure Scope**:
-   - List the package names of the apps you want to hook in `app/src/main/resources/META-INF/xposed/scope.list` (one per line).
-5. **Set Compilation Parameters**:
-   - Modify `compileSdk` and `targetSdkVersion` in `app/build.gradle` as needed.
-
-## Key Components
-
-- `MainModule.java`: The main entry point of the module, inheriting from `XposedModule`.
-- `java_init.list`: Tells libxposed which class is the entry point for the module.
-- `scope.list`: Defines the scope (apps) where the module will be active.
-- `module.prop`: Contains metadata information for the module.
-
-## Notes
-
-- This template uses the `libxposed` API. Please refer to its official documentation for more advanced usage.
-- Ensure that `compileOnly` dependencies are correctly configured during development to avoid bundling the Xposed API into your APK.
+Tested on `Xperia 1 VII (71.1.A.2.119)`

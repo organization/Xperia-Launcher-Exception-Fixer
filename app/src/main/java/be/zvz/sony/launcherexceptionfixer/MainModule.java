@@ -3,7 +3,6 @@ package be.zvz.sony.launcherexceptionfixer;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Resources;
-import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,6 +33,9 @@ public class MainModule extends XposedModule {
     private static final ThreadLocal<Context> currentContext = new ThreadLocal<>();
     private static int resIdStart = 0;
     private static int resIdEnd = 0;
+
+    private static Method searchRecyclerViewGetter;
+    private static Method appsContainerGetter;
 
     private static final WeakHashMap<View, ViewState> appsContainerStateMap = new WeakHashMap<>();
 
@@ -113,8 +115,7 @@ public class MainModule extends XposedModule {
 
                     if (requestedId != 0 && (requestedId == resIdStart || requestedId == resIdEnd)) {
                         try {
-                            Drawable fixedDrawable = ctx.getDrawable(requestedId);
-                            return fixedDrawable;
+                            return ctx.getDrawable(requestedId);
                         } catch (Throwable t) {
                             module.log(Log.ERROR, TAG, "Failed to fix drawable", t);
                             throw t;
@@ -124,6 +125,8 @@ public class MainModule extends XposedModule {
                 });
 
             Class<?> allAppsClass = cl.loadClass(CLASS_ALL_APPS);
+            searchRecyclerViewGetter = findMethod(allAppsClass, "getSearchRecyclerView");
+            appsContainerGetter = findMethod(allAppsClass, "getAppsRecyclerViewContainer");
 
             Method setSearchResultsMethod = findMethod(allAppsClass, "setSearchResults", ArrayList.class);
             hook(setSearchResultsMethod)
@@ -162,18 +165,13 @@ public class MainModule extends XposedModule {
         if (allAppsViewObj == null) return;
 
         try {
-            Method getSearchRecyclerView = findMethod(allAppsViewObj.getClass(), "getSearchRecyclerView");
-            Method getAppsRecyclerViewContainer = findMethod(allAppsViewObj.getClass(), "getAppsRecyclerViewContainer");
-
-            View searchRecyclerView = (View) getSearchRecyclerView.invoke(allAppsViewObj);
-            View appsContainer = (View) getAppsRecyclerViewContainer.invoke(allAppsViewObj);
+            View searchRecyclerView = (View) searchRecyclerViewGetter.invoke(allAppsViewObj);
+            View appsContainer = (View) appsContainerGetter.invoke(allAppsViewObj);
 
             if (searchRecyclerView == null || appsContainer == null) return;
 
             if (searchMode) {
-                if (!appsContainerStateMap.containsKey(appsContainer)) {
-                    appsContainerStateMap.put(appsContainer, new ViewState(appsContainer));
-                }
+                appsContainerStateMap.putIfAbsent(appsContainer, new ViewState(appsContainer));
 
                 searchRecyclerView.bringToFront();
                 searchRecyclerView.setTranslationZ(20f);

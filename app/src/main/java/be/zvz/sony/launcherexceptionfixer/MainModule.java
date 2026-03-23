@@ -1,8 +1,6 @@
 package be.zvz.sony.launcherexceptionfixer;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.res.Resources;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,7 +8,6 @@ import android.view.ViewParent;
 
 import androidx.annotation.NonNull;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.WeakHashMap;
@@ -24,15 +21,9 @@ public class MainModule extends XposedModule {
 
     private static final String TARGET_PACKAGE = "com.sonymobile.launcher";
 
-    private static final String CLASS_PAGE_INDICATOR = "com.android.launcher3.pageindicators.PageIndicatorDots";
-
     private static final String CLASS_ALL_APPS = "com.android.launcher3.allapps.ActivityAllAppsContainerView";
 
     private static MainModule module;
-
-    private static final ThreadLocal<Context> currentContext = new ThreadLocal<>();
-    private static int resIdStart = 0;
-    private static int resIdEnd = 0;
 
     private static Method searchRecyclerViewGetter;
     private static Method appsContainerGetter;
@@ -78,51 +69,6 @@ public class MainModule extends XposedModule {
 
         try {
             ClassLoader cl = param.getClassLoader();
-
-            Class<?> indicatorClass = cl.loadClass(CLASS_PAGE_INDICATOR);
-            Constructor<?> targetConstructor = indicatorClass.getDeclaredConstructor(Context.class, android.util.AttributeSet.class, int.class);
-            targetConstructor.setAccessible(true);
-            hook(targetConstructor)
-                .intercept(chain -> {
-                    Context context = (Context) chain.getArg(0);
-                    currentContext.set(context);
-
-                    if (resIdStart == 0 && context != null) {
-                        Resources res = context.getResources();
-                        String pkg = context.getPackageName();
-                        resIdStart = res.getIdentifier("ic_chevron_start", "drawable", pkg);
-                        resIdEnd = res.getIdentifier("ic_chevron_end", "drawable", pkg);
-                        module.log(Log.INFO, TAG, "Found Res IDs - Start: " + resIdStart + ", End: " + resIdEnd);
-                    }
-
-                    try {
-                        return chain.proceed();
-                    } finally {
-                        currentContext.remove();
-                    }
-                });
-
-            Method getDrawableMethod = Resources.class.getDeclaredMethod("getDrawable", int.class);
-            getDrawableMethod.setAccessible(true);
-            hook(getDrawableMethod)
-                .intercept(chain -> {
-                    Context ctx = currentContext.get();
-                    if (ctx == null) {
-                        return chain.proceed();
-                    }
-
-                    int requestedId = (int) chain.getArg(0);
-
-                    if (requestedId != 0 && (requestedId == resIdStart || requestedId == resIdEnd)) {
-                        try {
-                            return ctx.getDrawable(requestedId);
-                        } catch (Throwable t) {
-                            module.log(Log.ERROR, TAG, "Failed to fix drawable", t);
-                            throw t;
-                        }
-                    }
-                    return chain.proceed();
-                });
 
             Class<?> allAppsClass = cl.loadClass(CLASS_ALL_APPS);
             searchRecyclerViewGetter = findMethod(allAppsClass, "getSearchRecyclerView");

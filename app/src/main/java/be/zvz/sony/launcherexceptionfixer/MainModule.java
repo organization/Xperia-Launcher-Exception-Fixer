@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -15,14 +16,12 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.WeakHashMap;
 
-import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
-import io.github.libxposed.api.annotations.AfterInvocation;
-import io.github.libxposed.api.annotations.BeforeInvocation;
-import io.github.libxposed.api.annotations.XposedHooker;
 
-@SuppressLint({"PrivateApi", "BlockedPrivateApi"})
+@SuppressLint({"PrivateApi", "BlockedPrivateApi", "DiscouragedApi"})
 public class MainModule extends XposedModule {
+
+    private static final String TAG = "XperiaLauncherFixer";
 
     private static final String TARGET_PACKAGE = "com.sonymobile.launcher";
 
@@ -30,7 +29,7 @@ public class MainModule extends XposedModule {
 
     private static final String CLASS_ALL_APPS = "com.android.launcher3.allapps.ActivityAllAppsContainerView";
 
-    private static XposedModule module;
+    private static MainModule module;
 
     private static final ThreadLocal<Context> currentContext = new ThreadLocal<>();
     private static int resIdStart = 0;
@@ -62,15 +61,16 @@ public class MainModule extends XposedModule {
         }
     }
 
-    public MainModule(XposedInterface base, ModuleLoadedParam param) {
-        super(base, param);
+    @Override
+    public void onModuleLoaded(@NonNull ModuleLoadedParam param) {
+        super.onModuleLoaded(param);
         module = this;
-        this.log("Init module");
+        this.log(Log.INFO, TAG, "Init module");
     }
 
     @Override
-    public void onPackageLoaded(@NonNull PackageLoadedParam param) {
-        super.onPackageLoaded(param);
+    public void onPackageReady(@NonNull PackageReadyParam param) {
+        super.onPackageReady(param);
 
         if (!TARGET_PACKAGE.equals(param.getPackageName())) return;
 
@@ -80,101 +80,81 @@ public class MainModule extends XposedModule {
             Class<?> indicatorClass = cl.loadClass(CLASS_PAGE_INDICATOR);
             Constructor<?> targetConstructor = indicatorClass.getDeclaredConstructor(Context.class, android.util.AttributeSet.class, int.class);
             targetConstructor.setAccessible(true);
-            hook(targetConstructor, ConstructorHooker.class);
+            hook(targetConstructor)
+                .intercept(chain -> {
+                    Context context = (Context) chain.getArg(0);
+                    currentContext.set(context);
+
+                    if (resIdStart == 0 && context != null) {
+                        Resources res = context.getResources();
+                        String pkg = context.getPackageName();
+                        resIdStart = res.getIdentifier("ic_chevron_start", "drawable", pkg);
+                        resIdEnd = res.getIdentifier("ic_chevron_end", "drawable", pkg);
+                        module.log(Log.INFO, TAG, "Found Res IDs - Start: " + resIdStart + ", End: " + resIdEnd);
+                    }
+
+                    try {
+                        return chain.proceed();
+                    } finally {
+                        currentContext.remove();
+                    }
+                });
 
             Method getDrawableMethod = Resources.class.getDeclaredMethod("getDrawable", int.class);
             getDrawableMethod.setAccessible(true);
-            hook(getDrawableMethod, ResourcesHooker.class);
+            hook(getDrawableMethod)
+                .intercept(chain -> {
+                    Context ctx = currentContext.get();
+                    if (ctx == null) {
+                        return chain.proceed();
+                    }
+
+                    int requestedId = (int) chain.getArg(0);
+
+                    if (requestedId != 0 && (requestedId == resIdStart || requestedId == resIdEnd)) {
+                        try {
+                            Drawable fixedDrawable = ctx.getDrawable(requestedId);
+                            return fixedDrawable;
+                        } catch (Throwable t) {
+                            module.log(Log.ERROR, TAG, "Failed to fix drawable", t);
+                            throw t;
+                        }
+                    }
+                    return chain.proceed();
+                });
 
             Class<?> allAppsClass = cl.loadClass(CLASS_ALL_APPS);
 
             Method setSearchResultsMethod = findMethod(allAppsClass, "setSearchResults", ArrayList.class);
-            hook(setSearchResultsMethod, SetSearchResultsHooker.class);
+            hook(setSearchResultsMethod)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    Object listObj = chain.getArg(0);
+                    boolean enteringSearch = listObj != null;
+                    applySearchTouchFix(chain.getThisObject(), enteringSearch);
+                    return result;
+                });
 
             Method onClearSearchResultMethod = findMethod(allAppsClass, "onClearSearchResult");
-            hook(onClearSearchResultMethod, ClearSearchHooker.class);
+            hook(onClearSearchResultMethod)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    applySearchTouchFix(chain.getThisObject(), false);
+                    return result;
+                });
 
             Method animateToSearchStateMethod = findMethod(allAppsClass, "animateToSearchState", boolean.class, long.class);
-            hook(animateToSearchStateMethod, AnimateToSearchStateHooker.class);
+            hook(animateToSearchStateMethod)
+                .intercept(chain -> {
+                    boolean enteringSearch = (boolean) chain.getArg(0);
+                    applySearchTouchFix(chain.getThisObject(), enteringSearch);
+                    return chain.proceed();
+                });
 
-            this.log("Hooks registered successfully.");
+            this.log(Log.INFO, TAG, "Hooks registered successfully.");
 
         } catch (Throwable t) {
-            this.log("Failed to register hooks", t);
-        }
-    }
-
-    @XposedHooker
-    private static class ConstructorHooker implements Hooker {
-        @BeforeInvocation
-        @SuppressLint("DiscouragedApi")
-        public static void before(@NonNull BeforeHookCallback callback) {
-            Context context = (Context) callback.getArgs()[0];
-            currentContext.set(context);
-
-            if (resIdStart == 0 && context != null) {
-                Resources res = context.getResources();
-                String pkg = context.getPackageName();
-                resIdStart = res.getIdentifier("ic_chevron_start", "drawable", pkg);
-                resIdEnd = res.getIdentifier("ic_chevron_end", "drawable", pkg);
-                module.log("Found Res IDs - Start: " + resIdStart + ", End: " + resIdEnd);
-            }
-        }
-
-        @AfterInvocation
-        public static void after(@NonNull AfterHookCallback callback) {
-            currentContext.remove();
-        }
-    }
-
-    @XposedHooker
-    private static class ResourcesHooker implements Hooker {
-        @BeforeInvocation
-        public static void before(@NonNull BeforeHookCallback callback) {
-            Context ctx = currentContext.get();
-            if (ctx == null) {
-                return;
-            }
-
-            int requestedId = (int) callback.getArgs()[0];
-
-            if (requestedId != 0 && (requestedId == resIdStart || requestedId == resIdEnd)) {
-                try {
-                    Drawable fixedDrawable = ctx.getDrawable(requestedId);
-
-                    callback.returnAndSkip(fixedDrawable);
-                } catch (Throwable t) {
-                    module.log("Failed to fix drawable", t);
-                    callback.throwAndSkip(t);
-                }
-            }
-        }
-    }
-
-    @XposedHooker
-    private static class SetSearchResultsHooker implements Hooker {
-        @AfterInvocation
-        public static void after(@NonNull AfterHookCallback callback) {
-            Object listObj = callback.getArgs()[0];
-            boolean enteringSearch = listObj != null;
-            applySearchTouchFix(callback.getThisObject(), enteringSearch);
-        }
-    }
-
-    @XposedHooker
-    private static class ClearSearchHooker implements Hooker {
-        @AfterInvocation
-        public static void after(@NonNull AfterHookCallback callback) {
-            applySearchTouchFix(callback.getThisObject(), false);
-        }
-    }
-
-    @XposedHooker
-    private static class AnimateToSearchStateHooker implements Hooker {
-        @BeforeInvocation
-        public static void before(@NonNull BeforeHookCallback callback) {
-            boolean enteringSearch = (boolean) callback.getArgs()[0];
-            applySearchTouchFix(callback.getThisObject(), enteringSearch);
+            this.log(Log.ERROR, TAG, "Failed to register hooks", t);
         }
     }
 
@@ -226,7 +206,7 @@ public class MainModule extends XposedModule {
                 vg.invalidate();
             }
         } catch (Throwable t) {
-            module.log("applySearchTouchFix failed", t);
+            module.log(Log.ERROR, TAG, "applySearchTouchFix failed", t);
         }
     }
 
